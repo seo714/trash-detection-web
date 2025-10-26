@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI 기반 관광지 바닥 쓰레기 감지 시스템 - 파일 업로드</title>
+    <meta charset="utf-8"> 
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            color: #333;
+            padding: 20px;
+        }
+        h1 {
+            color: #0056b3;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        /* 기본 파일 인풋은 숨기고, label을 버튼처럼 디자인 */
+        input[type="file"] {
+            display: none; 
+        }
+        .file-upload-label {
+            padding: 12px 25px;
+            font-size: 18px;
+            background-color: #28a745; /* 녹색 버튼 */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            text-align: center;
+        }
+        .file-upload-label:hover {
+            background-color: #218838;
+        }
+        #image-preview-container {
+            width: 300px; /* 미리보기 영역 너비 */
+            height: 200px; /* 미리보기 영역 높이 */
+            border: 2px dashed #ccc; /* 점선 테두리 */
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin-bottom: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* 그림자 */
+        }
+        #image-preview {
+            max-width: 100%; /* 컨테이너에 맞춰 이미지 크기 조절 */
+            max-height: 100%;
+            display: none; /* 초기에는 숨김 */
+        }
+        .placeholder-text {
+            color: #888;
+            font-size: 16px;
+        }
+        #label-container {
+            font-size: 22px;
+            font-weight: bold;
+            color: #0056b3;
+            text-align: center;
+            min-height: 60px;
+            margin-bottom: 25px;
+        }
+        #label-container div {
+            margin-bottom: 8px;
+        }
+
+        /* 쓰레기 감지 불 스타일 */
+        #trashLightContainer {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background-color: #fff;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        #trashLight {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #e0e0e0; /* 기본 (꺼짐) 색상 */
+            border: 3px solid #ccc;
+            transition: background-color 0.4s ease, box-shadow 0.4s ease;
+        }
+        #trashLight.on {
+            background-color: #ff4500; /* 쓰레기 감지 시 (켜짐) 주황빛 빨강 */
+            box-shadow: 0 0 20px #ff4500, 0 0 30px #ff4500, 0 0 40px #ff4500; /* 빛나는 효과 */
+            border-color: #ff4500;
+        }
+        .trash-text {
+            font-size: 26px;
+            font-weight: bold;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI 기반 관광지 바닥 쓰레기 감지 및 청소 알림 시스템</h1>
+
+    <div class="controls">
+        <input type="file" id="fileInput" accept="image/*" onchange="handleFileSelect(event)">
+        <label for="fileInput" class="file-upload-label">
+            이미지 파일 선택 및 분석
+        </label>
+    </div>
+
+    <div id="image-preview-container">
+        <img id="image-preview" src="#" alt="선택된 이미지 미리보기">
+        <span class="placeholder-text">여기에 이미지가 표시됩니다.</span>
+    </div>
+
+    <div id="label-container"></div>
+
+    <div id="trashLightContainer">
+        <span class="trash-text">쓰레기 감지 상태:</span>
+        <div id="trashLight"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        const URL = "./my_model/";
+        let model, labelContainer, maxPredictions;
+        let trashLight;
+        let imagePreview;
+        let placeholderText;
+
+        // 모델 로드는 페이지 로드 시 바로 시작
+        window.onload = async function() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+
+            trashLight = document.getElementById("trashLight");
+            imagePreview = document.getElementById("image-preview");
+            placeholderText = document.querySelector(".placeholder-text");
+
+            console.log("AI 모델 로드 완료!");
+            // 초기 상태: 예측 결과를 비웁니다.
+            labelContainer.innerHTML = ''; 
+            // 초기 상태: 불을 끕니다.
+            trashLight.classList.remove("on");
+        };
+
+        // 파일 선택 시 호출되는 함수
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                // 파일이 선택되지 않았을 경우, 예측 결과와 불 상태 초기화
+                labelContainer.innerHTML = '';
+                trashLight.classList.remove("on");
+                imagePreview.style.display = 'none';
+                placeholderText.style.display = 'block';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block'; // 이미지 보이기
+                placeholderText.style.display = 'none'; // 플레이스홀더 숨기기
+
+                // 이미지 로드가 완료된 후 예측 수행 (onload 이벤트 사용)
+                imagePreview.onload = async () => {
+                    await predict();
+                };
+            };
+            reader.readAsDataURL(file); // 파일을 Data URL로 읽기
+        }
+
+        // 이미지에 대해 예측 수행
+        async function predict() {
+            // HTML img 요소를 모델에 전달하여 예측 수행
+            const prediction = await model.predict(imagePreview);
+
+            let isTrashDetected = false; // 쓰레기가 감지되었는지 여부
+
+            // 이전 예측 결과 지우기
+            labelContainer.innerHTML = ''; 
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const className = prediction[i].className;
+                const probability = prediction[i].probability;
+
+                const classPrediction = `${className}: ${(probability * 100).toFixed(2)}%`;
+                
+                // 새로운 div를 만들어 추가 (기존 div를 재활용하는 대신)
+                const div = document.createElement("div");
+                div.innerHTML = classPrediction;
+                labelContainer.appendChild(div);
+
+                // '쓰레기' 클래스를 찾아서 확률 확인
+                // IMPORTANT: 'Class 1'이 쓰레기 클래스라고 가정합니다.
+                // 실제 Teachable Machine에서 쓰레기로 학습시킨 클래스 이름을 사용하세요.
+                if (className === "Class 1" && probability > 0.7) { // 70% 이상의 확률로 'Class 1'일 경우
+                    isTrashDetected = true;
+                }
+            }
+
+            // 쓰레기 감지 여부에 따라 불 켜고 끄기
+            if (isTrashDetected) {
+                trashLight.classList.add("on"); // 'on' 클래스 추가 (불 켜짐)
+            } else {
+                trashLight.classList.remove("on"); // 'on' 클래스 제거 (불 꺼짐)
+            }
+        }
+    </script>
+</body>
+</html>
